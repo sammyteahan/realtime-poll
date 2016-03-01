@@ -4875,21 +4875,16 @@
 	  });
 
 	  /**
-	  * @desc sort questions by points after
-	  * they are initially loaded
-	  */
-	  self.on('mount', function () {
-	    // self.state.questions.sort(self.comparator);
-	  });
-
-	  /**
 	  * @desc subscribe to store changes, so after our
 	  * api call is passed through the reducer and the
 	  * store state changes, it will be reflected in
-	  * our component
+	  * our component. we are also sorting questions
+	  * here as well. Not sure if my mom would be proud
+	  * of me for that or not.
 	  */
 	  store.subscribe(function () {
 	    self.state = store.getState();
+	    self.state.questions.sort(self.comparator);
 	    self.update();
 	  });
 
@@ -4939,10 +4934,6 @@
 	      question: self.newQuestion.value,
 	      points: 1
 	    };
-	    // if (self.newQuestion.value.length) {
-	    //   self.socket.emit('new question', payload);
-	    //   self.newQuestion.value = 'Ask a question';
-	    // }
 	    if (self.newQuestion.value.length) {
 	      opts.addQuestion(payload);
 	      self.newQuestion.value = 'Ask a question';
