@@ -4,47 +4,51 @@
       <input type="text" id="newQuestion" class="add-question" value="Ask a question" onfocus={clear}>
     </form>
   </div>
-  <div each={questions} class="item">
+  <div each={obj, i in state.questions} class="item">
     <i class="fa fa-4x fa-arrow-circle-o-up" onclick={handleVote}></i>
-    <p class="info">{question}</p>
-    <p class="value">{points}</p>
+    <p class="info">{obj.question}</p>
+    <p class="value">{obj.points}</p>
   </div>
 
   <script>
     let self = this;
+    let store = opts.store;
+    self.socket = io.connect();
 
-    self.on('before-mount', function() {
-      self.socket = io.connect();
-      self.isThrottled = false;
-      self.throttleDuration = 100;
+    self.socket.on('question change', function (data) {
+      if (data.old_val == null) {
+        store.dispatch(opts.questionAdded(data.new_val));
+      } else {
+        self.state.questions.forEach((question, index) => {
+          if (question.id === data.old_val.id) {
+            store.dispatch(opts.questionUpvoted(index, data.new_val.id, data.new_val));
+          }
+        });
+      }
     });
 
     /**
-    * @desc register socket and load questions
-    *
-    * We do our socket stuff in here. Not sure how I
-    * feel about that yet, but this is just a proof on concept
+    * @desc hydrate component with data by
+    * dispatching an action to our api
     */
-    self.on('mount', function() {
-      self.socket.on('load questions', function (data) {
-        self.questions = data;
-        self.questions.sort(self.comparator);
-        self.update();
-      });
-      self.socket.on('question change', function (data) {
-        if (data.old_val === null) {
-          self.questions.push(data.new_val);
-          self.update();
-        } else {
-          self.questions.forEach((question, index) => {
-            if (question.id === data.old_val.id) {
-              self.questions[index] = data.new_val;
-              self.questions.sort(self.comparator);
-              self.update();
-            }
-          });
-        }
-      });
+    self.on('before-mount', function() {
+      self.isThrottled = false;
+      self.throttleDuration = 100;
+      store.dispatch(opts.fetchQuestions());
+    });
+
+    /**
+    * @desc subscribe to store changes, so after our
+    * api call is passed through the reducer and the
+    * store state changes, it will be reflected in
+    * our component. we are also sorting questions
+    * here as well. Not sure if my mom would be proud
+    * of me for that or not.
+    */
+    store.subscribe(() => {
+      self.state = store.getState();
+      self.state.questions.sort(self.comparator);
+      self.update();
     });
 
     /**
@@ -57,16 +61,19 @@
       setTimeout(function() {
         self.isThrottled = false;
       }, self.throttleDuration);
-      self.upvote(e.item.id);
+      self.upvote(e.item.obj.id, e.item.i);
     }
 
     /**
-    * @desc increment id and emit and action
+    * @desc post to api with id of upvoted question.
+    * don't pass immediately through reducers via dispatch.
+    * instead wait for change feed action through socket io
     *
-    * @param event {Event} - Event
+    * @param id {String} - id
+    * @param index {Int} - index
     */
-    self.upvote = (id) => {
-      self.socket.emit('upvote question', id);
+    self.upvote = (id, index) => {
+      opts.upvoteQuestion(id, index);
     }
 
     /**
@@ -88,8 +95,8 @@
         question: self.newQuestion.value,
         points: 1
       }
-      if(self.newQuestion.value.length) {
-        self.socket.emit('new question', payload);
+      if (self.newQuestion.value.length) {
+        opts.addQuestion(payload);
         self.newQuestion.value = 'Ask a question';
       }
     }
